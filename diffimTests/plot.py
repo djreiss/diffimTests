@@ -24,7 +24,7 @@ def zscale_image(input_img, contrast=0.25):
 
 def plotImageGrid(images, nrows_ncols=None, extent=None, clim=None, interpolation='none',
                   cmap='gray', imScale=2., cbar=True, titles=None, titlecol=['r', 'y'],
-                  same_zscale=False, **kwds):
+                  same_zscale=False, masks=None, **kwds):
     import matplotlib.pyplot as plt
     import matplotlib
     matplotlib.style.use('ggplot')
@@ -116,6 +116,33 @@ def plotImageGrid(images, nrows_ncols=None, extent=None, clim=None, interpolatio
             t = add_inner_title(igrid[i], titles[i], loc=2)
             t.patch.set_ec("none")
             t.patch.set_alpha(0.5)
+        if masks is not None:
+            # masks: a dict mapping image index in grid (int) ->
+            # list of dict{mask: mask, maskName: maskName, cmap: cmapName, alpha: alph}
+            # alpha and cmap are optional.
+            # cmap is a mapping to the cmaps by name here:
+            # http://matplotlib.org/examples/color/colormaps_reference.html
+            # Good choices are e.g. 'Purples', 'Blues', etc.
+            # mask can be a boolean numpy array (in this case, maskName is ignored), or a MaskU.
+            # if it as MaskU, then maskName required, and is e.g. 'BAD', 'DETECTED', etc.
+            # if there is no 'mask' item, assume that the input image is an exposure and get its mask.
+            if i in masks:
+                mdata = masks[i]
+                for d in mdata:
+                    if 'mask' in d:
+                        mask = d['mask']
+                    else:
+                        mask = images[i].getMaskedImage().getMask()
+                    if not isinstance(mask, np.ndarray):  # assume it's an afwImage.mask.MaskU then
+                        msk = mask.getPlaneBitMask(d['maskName'])
+                        mask = (mask.getArray() & msk) != 0
+                    mask = mask * 0.7  # this sets the saturation of the color where mask==1
+                    mask[mask == 0.0] = np.nan
+                    mask[0, 0] = 0.0
+                    mask[0, 1] = 1.0
+                    alpha = d['alpha'] if 'alpha' in d else 0.5
+                    mcmap = d['cmap'] if 'cmap' in d else 'Blues'
+                    igrid[i].imshow(mask, origin='lower', cmap=mcmap, alpha=alpha)
         if extentWasNone:
             extent = None
         extentWasNone = False
